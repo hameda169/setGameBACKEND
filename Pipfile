@@ -13,6 +13,7 @@ flask-cors = "*"
 flask-pymongo = "*"
 pymongo = "==3.6.0"
 gunicorn = "*"
+eventlet = "*"
 
 [requires]
 python_version = "3.6"
