@@ -16,15 +16,6 @@ cors = CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 
-# my_cards = list(range(1, 82))
-# active_cards = []
-# wins = dict()
-# restricted = ''
-# shuffle(my_cards)
-# # room = 'my_room'
-# my_room = []
-
-
 def match_cards(*c):
     return all(map(lambda i: len({c[0][i], c[1][i], c[2][i]}) in [1, len(c)], range(len(c[0]))))
 
@@ -50,7 +41,8 @@ def add_room():
 @app.route('/room/<room>')
 def get_room(room):
     room = my_mongodb.db.rooms.find_one({'id': room})
-    del room['_id'] if room else None
+    if room:
+        del room['_id']
     return room if room else dict()
 
 
