@@ -1,2 +1,2 @@
 secret = 'secret!'
-mongo = 'mongodb://gamer:game1234@ds245238.mlab.com:45238/database_169'
+mongo = 'MONGO_DATABASE_URI'
