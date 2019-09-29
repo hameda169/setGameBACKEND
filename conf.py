@@ -1,2 +1,2 @@
 secret = 'secret!'
-mongo = 'mongodb://localhost:27027/setDatabase'
+mongo = 'mongodb://localhost:27017/setDatabase'
