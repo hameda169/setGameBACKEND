@@ -109,15 +109,15 @@ def add_room():
     _id = f'Room{md5(_id).hexdigest()}'
     my_cards = list(range(1, 82))
     shuffle(my_cards)
-    room = dict(name=name, id=_id, my_cards=my_cards, active_cards=[], wins=dict(), restricted='',
-                started=False, finished=False)
+    room = dict(name=name, id=_id, my_cards=my_cards, active_cards=[], wins=dict(), restricted='', started=False,
+                finished=False)
     my_mongodb.db.rooms.insert_one(room)
     return dict(type='createRoom_success', room=dict(name=name, id=_id))
 
 
 @app.route('/room/<room>')
 def get_room(room):
-    room = my_mongodb.db.rooms.find_one({'id': room}, {'_id': 0})
+    room = my_mongodb.db.rooms.find_one({'id': room}, {'_id': 0, 'my_cards': 0})
     return room if room else dict()
 
 
