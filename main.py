@@ -31,11 +31,11 @@ class MyGame(Namespace):
             emit('error', dict(signal='join', message='Room is not exists or is closed'))
             return
         wins = room['wins']
-        print(f'user {request.sid} wants to join to {room[id]}')
+        print(f'user {request.sid} wants to join to {room["id"]}')
         wins[f'{request.sid}'] = []
         join_room(room['id'])
         my_mongodb.db.rooms.update_one({'id': room['id']}, {'$set': {'wins': wins}})
-        print(f'user {request.sid} joined to {room[id]} Successfully')
+        print(f'user {request.sid} joined to {room["id"]} Successfully')
         emit('join_success', dict(data=dict(id=f'{request.sid}')))
 
     @staticmethod
