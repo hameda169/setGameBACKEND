@@ -1,5 +1,5 @@
 from flask import Flask, request
-from flask_socketio import SocketIO, send, join_room, leave_room, emit
+from flask_socketio import SocketIO, join_room, leave_room, emit
 from flask_pymongo import PyMongo
 from flask_cors import CORS
 from random import shuffle
@@ -28,14 +28,14 @@ def hello():
 @app.route('/room', methods=['POST'])
 def add_room():
     name = request.json['name']
-    id = f'{time()}'.encode()
-    id = f'Room{md5(id).hexdigest()}'
+    _id = f'{time()}'.encode()
+    _id = f'Room{md5(_id).hexdigest()}'
     my_cards = list(range(1, 82))
     shuffle(my_cards)
-    room = dict(name=name, id=id, my_cards=my_cards, active_cards=[], wins=dict(), restricted='',
+    room = dict(name=name, id=_id, my_cards=my_cards, active_cards=[], wins=dict(), restricted='',
                 started=False, finished=False)
     my_mongodb.db.rooms.insert_one(room)
-    return dict(type='createRoom_success', room=dict(name=name, id=id))
+    return dict(type='createRoom_success', room=dict(name=name, id=_id))
 
 
 @app.route('/room/<room>')

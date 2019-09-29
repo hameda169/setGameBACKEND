@@ -2,4 +2,4 @@ venv/
 templates/
 __pycache__/
 .idea/
-conf.py
+
