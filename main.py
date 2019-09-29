@@ -4,7 +4,7 @@ from flask_pymongo import PyMongo
 from flask_cors import CORS
 from random import shuffle
 from numpy import base_repr as br
-import conf
+import conf  # change conf.py for deploy
 from hashlib import md5
 from time import time
 
@@ -24,58 +24,88 @@ class MyGame(Namespace):
     @staticmethod
     def on_join(message):
         room = message['room']
-        room = my_mongodb.db.rooms.find_one({'id': room}, {'started': 1, 'wins': 1, 'id': 1})
-        if not room or room['started']:
-            emit('error', dict(message='Room is not exists or is closed'))
+        room = my_mongodb.db.rooms.find_one({'id': room, 'started': False},
+                                            {'_id': 0, 'started': 1, 'wins': 1, 'id': 1})
+        if not room:
+            print(f'ERR on join user #{request.sid} to #{message["room"]}')
+            emit('error', dict(signal='join', message='Room is not exists or is closed'))
             return
         wins = room['wins']
-        print(f'received message from {request.sid}: ' + str(message))
+        print(f'user {request.sid} wants to join to {room[id]}')
         wins[f'{request.sid}'] = []
         join_room(room['id'])
         my_mongodb.db.rooms.update_one({'id': room['id']}, {'$set': {'wins': wins}})
+        print(f'user {request.sid} joined to {room[id]} Successfully')
         emit('join_success', dict(data=dict(id=f'{request.sid}')))
 
     @staticmethod
     def on_start_room(data):
-        room = my_mongodb.db.rooms.find_one({'id': data['id']}, {'my_cards': 1, 'active_cards': 1, 'id': 1})
+        room = my_mongodb.db.rooms.find_one(
+            {'id': data['id'], 'started': False, f'wins.{request.sid}': {'$exists': True}},
+            {'my_cards': 1, 'active_cards': 1, 'id': 1})
+        if not room:
+            print(f'ERR on start_room #{data["id"]} by user #{request.sid}')
+            emit('error',
+                 dict(signal='start_room', message='Room is not exists or is closed or you are not in this room'))
+            return
+        print(f'user {request.sid} is starting {room["id"]}')
         my_cards = room['my_cards']
         active_cards = room['active_cards']
         my_cards, x = my_cards[:-6], my_cards[-6:]
         x = list(map(lambda y: f'000{br(y, base=3)}'[-4:], x))
         active_cards = [*active_cards, *x]
-        my_mongodb.db.rooms.update_one({'id': data['id']},
+        my_mongodb.db.rooms.update_one({'id': room['id']},
                                        {'$set': {'my_cards': my_cards, 'active_cards': active_cards, 'started': True}})
+        print(f'{room["id"]} started by user {request.sid} Successfully')
         emit('init', dict(cards=x), room=room['id'])
 
     @staticmethod
     def on_challenge(data):
-        room = my_mongodb.db.rooms.find_one({'id': data['room'], f'wins.{request.sid}': {'$exists': True}})
+        room = my_mongodb.db.rooms.find_one(
+            {'id': data['room'], 'started': True, f'wins.{request.sid}': {'$exists': True}})
+        if not room:
+            print(f'ERR on challenge #{data["id"]} by user #{request.sid}')
+            emit('error',
+                 dict(signal='challenge', message='Room is not exists or is closed or you are not in this room'))
+            return
         restricted = room['restricted']
         active_cards = room['active_cards']
         wins = room['wins']
+        print(f'user {request.sid} wants to challenge cards')
         if request.sid == restricted:
-            # TODO
-            pass
+            res = dict(cards=data['cards'], sid=f'{request.sid}')
+            print(f'challenge rejected. user {request.sid} is restricted')
+            emit('challenge_fail', res, room=room['id'])
         elif not list(set(data['cards']) - set(active_cards)) and match_cards(*data['cards']):
             restricted = ''
             active_cards = list(set(active_cards) - set(data['cards']))
             wins[f'{request.sid}'] = [*wins[f'{request.sid}'], *data['cards']]
             res = dict(cards=data['cards'], sid=f'{request.sid}', wins=wins)
+            my_mongodb.db.rooms.update_one({'id': room['id']}, {
+                '$set': {'restricted': restricted, 'active_cards': active_cards, 'wins': wins}})
+            print(f'Challenge accepted from user {request.sid}. Cards {data["cards"]} set Successfully')
             emit('challenge_success', res, room=room['id'])
         else:
             res = dict(cards=data['cards'], sid=f'{request.sid}')
-            emit('challenge_fail', res, room=room['id'])
             restricted = request.sid
-        my_mongodb.db.rooms.update_one({'id': room['id']},
-                                       {'$set': {'restricted': restricted, 'active_cards': active_cards, 'wins': wins}})
+            my_mongodb.db.rooms.update_one({'id': room['id']}, {'$set': {'restricted': restricted}})
+            print(f'Challenge rejected. user {request.sid} is restricted or cards selected before')
+            emit('challenge_fail', res, room=room['id'])
 
     @staticmethod
     def on_deal(data):
-        room = my_mongodb.db.rooms.find_one({'id': data['room'], f'wins.{request.sid}': {'$exists': True}})
+        room = my_mongodb.db.rooms.find_one(
+            {'id': data['room'], 'started': True, f'wins.{request.sid}': {'$exists': True}})
+        if not room:
+            print(f'ERR on deal #{data["id"]} by user #{request.sid}')
+            emit('error', dict(signal='deal', message='Room is not exists or is closed or you are not in this room'))
+            return
+        print(f'Deal requested with user {request.sid} for room {room["id"]}')
         active_cards = room['active_cards']
         my_cards = room['my_cards']
         if len(active_cards) > 20:
-            res = dict(type='DEAL_FAIL', message="Table has more than 20 cards")
+            print(f'Deal failed. {room["id"]} has {len(active_cards)} cards')
+            res = dict(type='DEAL_FAIL', message="Room has more than 20 cards")
             emit('deal_fail', res)
             return
         my_cards, x = my_cards[:-3], my_cards[-3:]
@@ -83,8 +113,8 @@ class MyGame(Namespace):
         active_cards = [*active_cards, *x]
         my_mongodb.db.rooms.update_one({'id': room['id']},
                                        {'$set': {'my_cards': my_cards, 'active_cards': active_cards}})
-        res = dict(cards=x)
-        emit('deal_success', res, room=room['id'], namespace='')
+        print(f'Deal cards {x} to {room["id"]} is done Successfully')
+        emit('deal_success', dict(cards=x), room=room['id'])
 
     @staticmethod
     def on_connect():
@@ -99,7 +129,7 @@ class MyGame(Namespace):
 
 @app.route('/')
 def hello():
-    return 'Hello World. Version 1.0'
+    return 'Hello World. Version 1.0.1'
 
 
 @app.route('/room', methods=['POST'])
