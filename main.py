@@ -12,7 +12,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = conf.secret
 app.config["MONGO_URI"] = conf.mongo
 my_mongodb = PyMongo(app)
-cors = CORS(app)
+CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 
