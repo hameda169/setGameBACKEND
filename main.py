@@ -25,23 +25,23 @@ class MyGame(Namespace):
     def on_join(message):
         room = message['room']
         room = my_mongodb.db.rooms.find_one({'id': room, 'started': False},
-                                            {'_id': 0, 'started': 1, 'wins': 1, 'id': 1})
+                                            {'_id': 0, 'name': 1, 'started': 1, 'users': 1, 'id': 1})
         if not room:
             print(f'ERR on join user #{request.sid} to #{message["room"]}')
             emit('error', dict(signal='join', message='Room is not exists or is closed'))
             return
-        wins = room['wins']
+        users = room['users']
         print(f'user {request.sid} wants to join to {room["id"]}')
-        wins[f'{request.sid}'] = []
+        users[request.sid] = dict(id=len(users), scores=[], name=message['name'])
         join_room(room['id'])
-        my_mongodb.db.rooms.update_one({'id': room['id']}, {'$set': {'wins': wins}})
+        my_mongodb.db.rooms.update_one({'id': room['id']}, {'$set': {'users': users}})
         print(f'user {request.sid} joined to {room["id"]} Successfully')
-        emit('join_success', dict(data=dict(id=f'{request.sid}')))
+        emit('join_success', dict(id=users[request.sid]['id'], sid=request.sid, room_name=room['name']))
 
     @staticmethod
     def on_start_room(data):
         room = my_mongodb.db.rooms.find_one(
-            {'id': data['id'], 'started': False, f'wins.{request.sid}': {'$exists': True}},
+            {'id': data['id'], 'started': False, f'users.{request.sid}': {'$exists': True}},
             {'my_cards': 1, 'active_cards': 1, 'id': 1})
         if not room:
             print(f'ERR on start_room #{data["id"]} by user #{request.sid}')
@@ -62,7 +62,7 @@ class MyGame(Namespace):
     @staticmethod
     def on_challenge(data):
         room = my_mongodb.db.rooms.find_one(
-            {'id': data['room'], 'started': True, f'wins.{request.sid}': {'$exists': True}})
+            {'id': data['room'], 'started': True, f'users.{request.sid}': {'$exists': True}})
         if not room:
             print(f'ERR on challenge #{data["id"]} by user #{request.sid}')
             emit('error',
@@ -70,24 +70,25 @@ class MyGame(Namespace):
             return
         restricted = room['restricted']
         active_cards = room['active_cards']
-        wins = room['wins']
+        users = room['users']
         print(f'user {request.sid} wants to challenge cards')
         if request.sid == restricted:
-            res = dict(cards=data['cards'], sid=f'{request.sid}')
+            res = dict(cards=data['cards'], sid=request.sid)
             print(f'challenge rejected. user {request.sid} is restricted')
             emit('challenge_fail', res, room=room['id'])
         elif not list(set(data['cards']) - set(active_cards)) and match_cards(*data['cards']):
             restricted = ''
             active_cards = list(set(active_cards) - set(data['cards']))
-            wins[f'{request.sid}'] = [*wins[f'{request.sid}'], *data['cards']]
-            res = dict(cards=data['cards'], sid=f'{request.sid}', wins=wins)
+            users[request.sid]['scores'] = [*users[request.sid]['scores'], *data['cards']]
+            p_users = {x['id']: dict(scores=x['scores'], name=x['name']) for x in users.values()}
+            res = dict(cards=data['cards'], id=users[request.sid]['id'], users=p_users)
             my_mongodb.db.rooms.update_one({'id': room['id']}, {
-                '$set': {'restricted': restricted, 'active_cards': active_cards, 'wins': wins}})
+                '$set': {'restricted': restricted, 'active_cards': active_cards, 'users': users}})
             print(f'Challenge accepted from user {request.sid}. Cards {data["cards"]} set Successfully')
             emit('challenge_success', res, room=room['id'])
         else:
-            res = dict(cards=data['cards'], sid=f'{request.sid}')
-            restricted = request.sid
+            res = dict(cards=data['cards'], id=users[request.sid]['id'])
+            restricted = users[request.sid]['id']
             my_mongodb.db.rooms.update_one({'id': room['id']}, {'$set': {'restricted': restricted}})
             print(f'Challenge rejected. user {request.sid} is restricted or cards selected before')
             emit('challenge_fail', res, room=room['id'])
@@ -95,7 +96,7 @@ class MyGame(Namespace):
     @staticmethod
     def on_deal(data):
         room = my_mongodb.db.rooms.find_one(
-            {'id': data['room'], 'started': True, f'wins.{request.sid}': {'$exists': True}})
+            {'id': data['room'], 'started': True, f'users.{request.sid}': {'$exists': True}})
         if not room:
             print(f'ERR on deal #{data["id"]} by user #{request.sid}')
             emit('error', dict(signal='deal', message='Room is not exists or is closed or you are not in this room'))
@@ -122,14 +123,14 @@ class MyGame(Namespace):
 
     @staticmethod
     def on_disconnect():
-        rooms = my_mongodb.db.rooms.find({f'wins.{request.sid}': {'$exists': True}})
+        rooms = my_mongodb.db.rooms.find({f'users.{request.sid}': {'$exists': True}})
         [leave_room(i['id']) for i in rooms]
         print(f'Client {request.sid} disconnected')
 
 
 @app.route('/')
 def hello():
-    return 'Hello World. Version 1.0.1'
+    return 'Hello World. Version 1.0.2'
 
 
 @app.route('/room', methods=['POST'])
@@ -139,7 +140,7 @@ def add_room():
     _id = f'Room{md5(_id).hexdigest()}'
     my_cards = list(range(1, 82))
     shuffle(my_cards)
-    room = dict(name=name, id=_id, my_cards=my_cards, active_cards=[], wins=dict(), restricted='', started=False,
+    room = dict(name=name, id=_id, my_cards=my_cards, active_cards=[], users=dict(), restricted='', started=False,
                 finished=False)
     my_mongodb.db.rooms.insert_one(room)
     return dict(type='createRoom_success', room=dict(name=name, id=_id))
@@ -157,16 +158,7 @@ if __name__ == '__main__':
     socketio.run(app)
 
 """
-INIT            S->C(room)    
-DEAL_REQUEST    C->S 
-DEAL            S->C(room)
-CHALLENGE       C->S
-RESPONSE        S->C(room)
-RESTRICT        S->C(single)
-"""
-
-"""
-Tr Rc Ov
+Tr Rc Ol
 Rd Gr Bl
 On Tw Th
 Em Hf Fl
