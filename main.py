@@ -4,15 +4,22 @@ from flask_pymongo import PyMongo
 from flask_cors import CORS
 from random import shuffle
 from numpy import base_repr as br
-import conf  # change conf.py for deploy
 from hashlib import md5
 from time import time
+from dotenv import load_dotenv
+import os
+
+load_dotenv('.env')
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = conf.secret
-app.config["MONGO_URI"] = conf.mongo
+
+app.config['SECRET_KEY'] = os.getenv('SECRET')
+app.config["MONGO_URI"] = os.getenv('MONGODB_URL')
+
 my_mongodb = PyMongo(app)
+
 CORS(app)
+
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 
@@ -130,7 +137,7 @@ class MyGame(Namespace):
 
 @app.route('/')
 def hello():
-    return 'Hello World. Version 1.0.2'
+    return 'Hello World. Version 1.1.0'
 
 
 @app.route('/room', methods=['POST'])

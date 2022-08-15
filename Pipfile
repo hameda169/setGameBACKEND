@@ -6,14 +6,28 @@ verify_ssl = true
 [dev-packages]
 
 [packages]
-flask = "*"
-flask-socketio = "*"
+flask = "==1.1.1"
+flask-socketio = "==4.2.1"
 numpy = "*"
-flask-cors = "*"
-flask-pymongo = "*"
+flask-cors = "==3.0.8"
+flask-pymongo = "==2.3.0"
 pymongo = "==3.6.0"
-gunicorn = "*"
-eventlet = "*"
+gunicorn = "==19.9.0"
+eventlet = "==0.25.1"
+python-dotenv = "*"
+
+# remove after upgrading upgrading all packages
+python-socketio = "==4.3.1"
+python-engineio = "==3.9.3"
+six = "==1.12.0"
+werkzeug = "==0.16.0"
+click = "==7.0"
+dnspython = "==1.16.0"
+greenlet = "==0.4.15"
+itsdangerous = "==1.1.0"
+jinja2 = "==2.10.1"
+markupsafe = "==1.1.1"
+monotonic = "==1.5"
 
 [requires]
 python_version = "3.6"
