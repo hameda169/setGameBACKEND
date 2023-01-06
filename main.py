@@ -3,13 +3,20 @@ from flask_socketio import SocketIO, join_room, leave_room, emit, Namespace
 from flask_pymongo import PyMongo
 from flask_cors import CORS
 from random import shuffle
-from numpy import base_repr as br
 from hashlib import md5
 from time import time
-from dotenv import load_dotenv
 import os
 
-load_dotenv('.env')
+
+def number_to_base(n, base):
+    if n == 0:
+        return [0]
+    digits = []
+    while n:
+        digits.append(int(n % base))
+        n //= base
+    return ''.join(map(str, digits[::-1]))
+
 
 app = Flask(__name__)
 
@@ -59,7 +66,7 @@ class MyGame(Namespace):
         my_cards = room['my_cards']
         active_cards = room['active_cards']
         my_cards, x = my_cards[:-6], my_cards[-6:]
-        x = list(map(lambda y: f'000{br(y, base=3)}'[-4:], x))
+        x = list(map(lambda y: f'000{number_to_base(y, base=3)}'[-4:], x))
         active_cards = [*active_cards, *x]
         my_mongodb.db.rooms.update_one({'id': room['id']},
                                        {'$set': {'my_cards': my_cards, 'active_cards': active_cards, 'started': True}})
@@ -117,7 +124,7 @@ class MyGame(Namespace):
             emit('deal_fail', res)
             return
         my_cards, x = my_cards[:-3], my_cards[-3:]
-        x = list(map(lambda y: f'000{br(y, base=3)}'[-4:], x))
+        x = list(map(lambda y: f'000{number_to_base(y, base=3)}'[-4:], x))
         active_cards = [*active_cards, *x]
         my_mongodb.db.rooms.update_one({'id': room['id']},
                                        {'$set': {'my_cards': my_cards, 'active_cards': active_cards}})
@@ -137,7 +144,7 @@ class MyGame(Namespace):
 
 @app.route('/')
 def hello():
-    return 'Hello World. Version 1.1.0'
+    return 'Hello World. Version 2.0.0'
 
 
 @app.route('/room', methods=['POST'])
