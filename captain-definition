@@ -1,0 +1,16 @@
+{
+ "schemaVersion" :2 ,
+  "dockerfileLines": [
+    "FROM library/python:3.8-alpine",
+    "RUN apk update && apk upgrade && apk add --no-cache make g++ bash git openssh postgresql-dev curl",
+    "RUN mkdir -p /usr/src/app",
+    "WORKDIR /usr/src/app",
+    "COPY ./ /usr/src/app",
+    "RUN pip install pip --upgrade",
+    "RUN pip install pipenv",
+    "RUN pipenv requirements > requirements.txt",
+    "RUN pip install -r requirements.txt",
+    "EXPOSE 80",
+    "CMD gunicorn --worker-class eventlet -w 1 main:app --bind=0.0.0.0:80"
+  ]
+}
